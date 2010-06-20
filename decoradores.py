@@ -1,10 +1,18 @@
 #!/usr/bin/env python
 #-*- coding: UTF-8 -*-
 import cPickle
+import sys
+import os
 import time
 import signal
-#import multiprocessing
 import inspect
+
+try:
+    import multiprocessing
+    MP = True
+except ImportError:
+    MP = False
+
 from debug import debug
 from functools import wraps
 from threading import Thread
@@ -47,11 +55,34 @@ class TimeoutExc(Exception):
         Exception.__init__(self)
         self.value = value
 
+def mptimeout(timeout, func, *args, **kwargs):
+    assert inspect.isfunction(func) or inspect.ismethod(func)
+
+    @wraps(func)
+    def newfunc(queue, args, kwargs):
+        return queue.put(func(*args, **kwargs))
+
+    queue = multiprocessing.Queue()
+    proc = multiprocessing.Process(None, newfunc, newfunc.func_name,
+        (queue, args, kwargs))
+    proc.start()
+    proc.join(timeout)
+
+    try:
+        return queue.get()
+    except:
+        return None
+
+#    if proc.is_alive():
+#        proc.terminate()
+#        raise TimeoutExc()
+#    else:
+#        return queue.get()
 
 def signaltimeout(timeout, func, *args, **kwargs):
-    def handler(signum, frame):
+    def handler(snum, frame):
         raise TimeoutExc
-    
+  
     old = signal.signal(signal.SIGALRM, handler)
     signal.alarm(timeout)
 
@@ -64,38 +95,16 @@ def signaltimeout(timeout, func, *args, **kwargs):
 
     return result
 
-#def mptimeout(timeout, func, *args, **kwargs):
-#    assert inspect.isfunction(func) or inspect.ismethod(func)
-
-#    @wraps(func)
-#    def newfunc(queue, args, kwargs):
-#        return queue.put(func(*args, **kwargs))
-
-#    queue = multiprocessing.Queue()
-#    proc = multiprocessing.Process(None, newfunc, newfunc.func_name,
-#        (queue, args, kwargs))
-#    proc.start()
-#    proc.join(timeout)
-
-#    try:
-#        return queue.get()
-#    except:
-#        return None
-
-
-#    if proc.is_alive():
-#        proc.terminate()
-#        raise TimeoutExc()
-#    else:
-#        return queue.get()
-
 
 def Timeout(time, default=None):
     def decorator(func):
         def decorated(*args, **kwargs):
 
             try:
-                return signaltimeout(time, func, *args, **kwargs)
+                if MP:
+                    return mptimeout(time, func, *args, **kwargs)
+                else:
+                    return signaltimeout(time, func, *args, **kwargs)
             except TimeoutExc:
                 return default
 
@@ -184,10 +193,6 @@ class Cache:
 
     def flush(self):
 
-#        for i in self.cache.iteritems():
-#            if time.time() - i[1][0] > self.limite:
-#                del(self.cache[i[0]])
-
         if self.ruta:
             try:
                 f = open(self.ruta, "rb")
@@ -246,33 +251,98 @@ class Retry:
         return call
 
 
-def Verbose(level):
+def get_depth():
+    def exist_frame(n):
+        try:
+            if sys._getframe(n):
+                return True
+        except ValueError:
+            return False
+
+    now = 0
+    maxn = 1
+    minn = 0
+
+    while exist_frame(maxn):
+        minn = maxn
+        maxn *= 2
+
+    # minn =< depth < maxn
+    middle = (minn + maxn) / 2
+  
+    while minn < middle:
+        if exist_frame(middle):
+            minn = middle
+        else:
+            maxn = middle
+
+        middle = (minn + maxn) / 2
+  
+    return max(minn - 4, 0) #4 == len(main, module, Verbose, get_depth)
+
+def relpath(path):
+    return os.path.abspath(path).replace(os.path.commonprefix(
+        (os.path.abspath(os.path.curdir), os.path.abspath(path))), "")
+
+def Verbose(level=1):
+
     def decorador(func):
         @wraps(func)
         def dfunc(*args, **kwargs):
 
             if level >= 3:
-                debug(" > %s(%s, %s)" % (func.func_name, args, kwargs))
+                debug("%s> %s(%s, %s)" % (" " * get_depth(), func.func_name,
+                    args, kwargs))
             elif level >= 1:
-                debug(" > %s" %func.func_name)
+                debug("%s> %s" % (" " * get_depth(), func.func_name))
 
             result = func(*args, **kwargs)
 
             if level >= 4:
-                debug(" < %s: %s" % (func.func_name, result))
+                debug("%s< %s: %s" % (" " * get_depth(), func.func_name,
+                    result))
             elif level >= 2:
-                debug(" < %s" % func.func_name)
+                debug('%s< %s, file "%s", line %s' % (" " * get_depth(),
+                    func.func_name, relpath(inspect.getfile(func)),
+                    inspect.getsourcelines(func)[-1]))
 
             return result
+
         return dfunc
     return decorador
 
+def Deprecated(level=1):
+    """
+Level can be 0 (do nothing), 1 (print debug waring) o 2 (raise
+DeprecationWarning)
+    """
 
+    assert level in (0, 1, 2)
+
+    def decorator(func):
+
+        @wraps(func)
+        def dfunc(*args, **kwargs):
+            if level > 0:
+                debug(" W: Usind deprecated %s from %s" % (func.func_name,
+                    inspect.getfile(func)))
+
+            if level == 2:
+                raise DeprecationWarning("""Busted!""")
+
+            return func(*args, **kwargs)
+
+        return dfunc
+
+    return decorator
 
 
 class MetaSingleton(type):
-    
+
     def __init__(self, name, bases, dict):
+        """
+Singleton Metaclass. You must use it on the __metaclass__ class atribute.
+        """
         super(MetaSingleton, self).__init__(name, bases, dict)
         self.instance = None
 
@@ -284,6 +354,7 @@ class MetaSingleton(type):
 
 
 class Singleton(object):
+    """Just an example."""
     __metaclass__ = MetaSingleton
 
 
