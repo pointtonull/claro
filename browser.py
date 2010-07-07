@@ -3,7 +3,6 @@
 import os
 import webbrowser
 import time
-import urllib2
 import ClientForm
 import cPickle
 
@@ -12,17 +11,18 @@ from debug import debug
 from decoradores import signaltimeout
 from cStringIO import StringIO
 
+from urllib2 import URLError
+
 import twill
-BrowserStateError = twill.browser.BrowserStateError
+from twill.utils import BrowserStateError
 
 tc = twill.commands
 twill.set_output(StringIO())
+twill.commands.config("use_tidy", 0)
 
 TEMPDIR = mkdtemp()
 HOME = os.environ["HOME"]
 CACHE = HOME +  "/.browser_cache"
-
-URLError = urllib2.URLError
 
 class FORM:
 
@@ -64,10 +64,7 @@ class BROWSER:
         self._twillbrowser.set_agent_string("moz7")
         self.timeout = timeout
 
-        try:
-            self.htmlCache = cPickle.load(open(CACHE))
-        except IOError:
-            self.htmlCache = {}
+        self.htmlCache = None
 
     def reload(self):
         return self._twillbrowser.reload()
@@ -116,15 +113,31 @@ class BROWSER:
                 self.go(url)
             html = self._twillbrowser.get_html()
         else:
-            date, html = self.htmlCache.get(url, (0, ""))
-            if (time.time() - date) > cache:
-                self.go(url)
-                html = self._twillbrowser.get_html()
-                date = time.time()
-                self.htmlCache[url] = date, html
-                cPickle.dump(self.htmlCache, open(CACHE, "w"), -1)
+            html = self.get_html_from_cache(url, cache)
+
 
         return html
+
+
+    def get_html_from_cache(self, url, cache):
+        if self.htmlCache is None:
+            try:
+                self.htmlCache = cPickle.load(open(CACHE))
+            except IOError:
+                self.htmlCache = {}
+
+        date, html = self.htmlCache.get(url, (0, ""))
+
+        if (time.time() - date) > cache:
+            self.go(url)
+            html = self._twillbrowser.get_html()
+            date = time.time()
+            self.htmlCache[url] = date, html
+            cPickle.dump(self.htmlCache, open(CACHE, "w"), -1)
+        
+        return html
+
+
 
     def get_title(self, url=None, *args, **kwargs):
         if url:
@@ -141,14 +154,15 @@ class BROWSER:
 
     def get_forms(self, url=None, *args, **kw):
 
-        if url is None: url = self.get_url()
+        if url is None:
+            url = self.get_url()
 
-        f = StringIO()
-        f.writelines(self.get_html(url, *args, **kw))
-        f.seek(0)
-        forms = ClientForm.ParseFile(f, url, backwards_compat=False)
+        fifo = StringIO()
+        fifo.writelines(self.get_html(url, *args, **kw))
+        fifo.seek(0)
+        forms = ClientForm.ParseFile(fifo, url, backwards_compat=False)
 
-        return [FORM(self, f) for f in forms]
+        return [FORM(self, form) for form in forms]
 
     def put_form(self, form=None, *args, **kw):
         if form is None:
