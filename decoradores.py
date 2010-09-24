@@ -255,9 +255,10 @@ class Timeit:
 
 class Retry:
 
-    def __init__(self, attempts=5, retry_on=None):
+    def __init__(self, attempts=5, retry_on=None, pause=0):
         self.attempts = attempts
         self.retry_on = retry_on
+        self.pause = pause
 
     def __call__(self, func):
         def call(*args, **kwargs):
@@ -269,6 +270,7 @@ class Retry:
                 if result is None and VERBOSE:
                     debug(" Retry %d: %s %s" % (
                         count, func.func_name, result))
+                    time.sleep(self.pause)
             return result
         return call
 
