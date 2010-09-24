@@ -21,9 +21,9 @@ from threading import Thread
 VERBOSE = False
 
 class Asyncobj(Thread):
-    def __init__(self, func, *args, **kw):
+    def __init__(self, func, *args, **kwargs):
         self.args = args
-        self.kw = kw
+        self.kwargs = kwargs
         self.func = func
         Thread.__init__(self)
         self.result = None
@@ -32,7 +32,7 @@ class Asyncobj(Thread):
         return self
 
     def run(self):
-        self.result = self.func(*self.args, **self.kw)
+        self.result = self.func(*self.args, **self.kwargs)
 
     def get_result(self, timeout=None):
         self.join(timeout)
@@ -50,6 +50,7 @@ class Async:
 
     def __repr__(self):
         return self.func.func_name
+
 
 def nothreadsafe(func):
 

