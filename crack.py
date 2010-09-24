@@ -20,7 +20,6 @@ def login(loginNumber, password):
 
     cookies = cookielib.CookieJar()
     opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cookies))
-    opener.open(MAINURL).readlines()
 
     data = urllib.urlencode({
         "EVENT": LOGINKEY,
@@ -28,12 +27,13 @@ def login(loginNumber, password):
         "password": password,
         })
 
-    retry = 5
+    retry = 30
     while retry:
-        try:    
+        try:
             html = "\n".join(opener.open(MAINURL, data).readlines())
-        except URLError:
+        except (urllib2.URLError, HTTPError):
             retry -= 1
+            time.sleep(1)
             debug("Retry %d" % retry)
         else:
             if """Los datos ingresados son correctos""" in html:
