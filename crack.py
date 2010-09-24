@@ -18,7 +18,7 @@ SALDOKEY = """DATOS_FACTURA"""
 
 
 @Async
-@Retry(30, pause=1)
+@Retry(30, pause=5)
 def login(loginNumber, password):
 
     data = urllib.urlencode({

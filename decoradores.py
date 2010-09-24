@@ -255,22 +255,26 @@ class Timeit:
 
 class Retry:
 
-    def __init__(self, attempts=5, retry_on=None, pause=0):
+    def __init__(self, attempts=5, retry_on=None, pause=5):
         self.attempts = attempts
         self.retry_on = retry_on
         self.pause = pause
 
     def __call__(self, func):
         def call(*args, **kwargs):
-            count = 0
-            result = self.retry_on
-            while count < self.attempts and result == self.retry_on:
-                count += 1
-                result = func(*args)
-                if result is None and VERBOSE:
-                    debug(" Retry %d: %s %s" % (
-                        count, func.func_name, result))
-                    time.sleep(self.pause)
+            for attempt in xrange(self.attempts):
+                result = func(*args, **kwargs)
+
+                if result != self.retry_on:
+                    return result
+
+                if VERBOSE:
+                    debug(" Retry %d: %s(*%s)" % (attempt, func.func_name,
+                        args))
+                time.sleep(self.pause)
+            else:
+                debug(" Failed %s(*%s, **%s)" % (func.func_name, args, kwargs))
+
             return result
         return call
 
