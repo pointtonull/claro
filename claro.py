@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 #-*- coding: UTF-8 -*-
-from browser import BROWSER
+
+import browser
 from os import environ
 from debug import debug
 import re
@@ -13,12 +14,13 @@ Se aceptan multiples registros."""
 
 class CLARO:
     def __init__(self):
-        self.browser = BROWSER()
+        self.browser = browser.get_browser()
         self._login_form = None
 
 
     def login(self, numero, pin):
-        url = """http://www.servicios.claroargentina.com/AutogestionCore2006/servlet/Controller?EVENT=WELCOMEMAS"""
+        url = ("""http://www.servicios.claroargentina.com/"""
+            """AutogestionCore2006/servlet/Controller?EVENT=WELCOMEMAS""")
         
         if self._login_form is None:
             self._login_form = self.browser.get_forms(url, cache=1000)[0]
@@ -32,12 +34,14 @@ class CLARO:
     def get_saldo(self, numero, pin):
         self.login(numero, pin)
         
-        url_saldo = """http://www.servicios.claroargentina.com/AutogestionCore2006/servlet/Controller?EVENT=DATOS_FACTURA"""
+        url_saldo = ("""http://www.servicios.claroargentina.com/"""
+            """AutogestionCore2006/servlet/Controller?EVENT=DATOS_FACTURA""")
 
         html = self.browser.get_html(url_saldo)
 
         try:
-            salida = re.search("""(?s)Saldo.*?Prepaga.*?\$.*?(\d*,\d*)""", html).group(1)
+            salida = re.search("""(?s)Saldo.*?Prepaga.*?\$.*?(\d*,\d*)""",
+                html).group(1)
         except AttributeError:
             return "Error"
         else:
