@@ -28,8 +28,17 @@ class Asyncobj(Thread):
         Thread.__init__(self)
         self.result = None
 
+
     def __call__(self):
         return self
+
+
+    def is_alive(self):
+        try:
+            return Thread.is_alive(self)
+        except AttributeError:
+            return Thread.isAlive(self)
+
 
     def run(self):
         self.result = self.func(*self.args, **self.kwargs)

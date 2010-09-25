@@ -57,7 +57,7 @@ def main():
                     if slots[pos].result:
                         print("¡La contraseña de %s es %s !" % (
                             loginNumber, slots[pos].result))
-                        return True
+                        return 0
                     passed = True
                 if passed:
                     slots[pos] = login(loginNumber, password)
