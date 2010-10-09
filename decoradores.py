@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #-*- coding: UTF-8 -*-
-import cPickle
+import pickle
 import sys
 import os
 import time
@@ -176,7 +176,7 @@ class Cache:
         if ruta:
             try:
                 f = open(self.ruta, "rb")
-                self.cache = cPickle.load(f)
+                self.cache = pickle.load(f)
                 f.close()
             except IOError:
                 self.cache = {}
@@ -227,12 +227,12 @@ class Cache:
         if self.ruta:
             try:
                 f = open(self.ruta, "rb")
-                self.cache = cPickle.load(f)
+                self.cache = pickle.load(f)
                 f.close()
             except:
                 if VERBOSE: debug("Error en lectura del cache")
             f = open(self.ruta, "wb")
-            cPickle.dump(self.cache, f, -1)
+            pickle.dump(self.cache, f, -1)
             f.flush()
             f.close()
             if VERBOSE: debug("Cache escrito exitosamente en %s" % self.ruta)
@@ -405,7 +405,7 @@ def main():
         else: return fibonar(n - 1) + fibonar(n - 2)
 
 
-    print fibonar(500)
+    print(fibonar(500))
 
 if __name__ == "__main__":
     exit(main())
