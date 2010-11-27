@@ -21,7 +21,7 @@ class CLARO:
     def login(self, numero, pin):
         url = ("""http://www.servicios.claroargentina.com/"""
             """AutogestionCore2006/servlet/Controller?EVENT=WELCOMEMAS""")
-        
+
         if self._login_form is None:
             self._login_form = self.browser.get_forms(url, cache=1000)[0]
 
@@ -33,7 +33,7 @@ class CLARO:
 
     def get_saldo(self, numero, pin):
         self.login(numero, pin)
-        
+
         url_saldo = ("""http://www.servicios.claroargentina.com/"""
             """AutogestionCore2006/servlet/Controller?EVENT=DATOS_FACTURA""")
 
