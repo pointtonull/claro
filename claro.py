@@ -19,30 +19,38 @@ class CLARO:
 
 
     def login(self, numero, pin):
-        url = ("""http://www.servicios.claroargentina.com/"""
-            """AutogestionCore2006/servlet/Controller?EVENT=WELCOMEMAS""")
+        url = ("""https://individuos.claro.com.ar""")
 
         if self._login_form is None:
+            debug("Consiguiendo un formulario")
             self._login_form = self.browser.get_forms(url, cache=1000)[0]
 
-        self._login_form["loginNumber"] = numero
-        self._login_form["password"] = pin
+        self._login_form["_58_login"] = numero
+        self._login_form["_58_password"] = pin
 
-        return self._login_form.submit()
+        error = self._login_form.submit()
+        if "Bienvenido"in error[1]:
+            return False
+        else:
+            return error
 
 
     def get_saldo(self, numero, pin):
         self.login(numero, pin)
 
-        url_saldo = ("""http://www.servicios.claroargentina.com/"""
-            """AutogestionCore2006/servlet/Controller?EVENT=DATOS_FACTURA""")
+        url_saldo = ("""https://individuos.claro.com.ar/web/guest/"""
+            """saldos-y-consumos""")
 
         html = self.browser.get_html(url_saldo)
+        regex = (r'Saldo Prepago Recarga.*?\$.*?(\d+.\d+).*?'
+            r'Saldo Prepago Promocional.*?\$.*?(\d+.\d+).*?'
+            r'Saldo Prepago Total.*?\$.*?(\d+.\d+)')
 
         try:
-            salida = re.search("""(?s)Saldo.*?Prepaga.*?\$.*?(\d*,\d*)""",
-                html).group(1)
+            res = re.search(regex, html)
+            salida = "%s + %s = %s" % (res.group(1), res.group(2), res.group(3))
         except AttributeError:
+#            self.browser.show()
             return "Error"
         else:
             return salida.replace(",", ".")
