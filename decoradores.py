@@ -8,17 +8,131 @@ import signal
 import inspect
 
 try:
-    from multiprocessing import Queue, Process
+    from multiprocessing import Process
     MP = True
 except ImportError:
     MP = False
 
 from debug import debug
 from functools import wraps
+from Queue import Queue, Empty, Full
 from threading import Thread
 
+VERBOSE = 0
 
-VERBOSE = False
+class Verbose:
+    def __init__(self, verbosity, prefix="", ident=True):
+        self.verbosity = False if verbosity < 0 else True
+        self.prefix = prefix
+        self.ident = ident
+
+    def __call__(self, *args):
+        if self.verbosity:
+            message = " ".join((unicode(e) for e in args))
+            sys.stderr.write("%s%s%s\n" % ("  " * self.get_depth(), self.prefix,
+                message))
+
+    def get_depth(self):
+        if not self.ident:
+            return 0
+        else:
+            def exist_frame(n):
+                try:
+                    if sys._getframe(n):
+                        return True
+                except ValueError:
+                    return False
+
+            now = 0
+            maxn = 1
+            minn = 0
+
+            while exist_frame(maxn):
+                minn = maxn
+                maxn *= 2
+
+            # minn =< depth < maxn
+            middle = (minn + maxn) / 2
+          
+            while minn < middle:
+                if exist_frame(middle):
+                    minn = middle
+                else:
+                    maxn = middle
+
+                middle = (minn + maxn) / 2
+          
+            return max(minn - 3, 0) #4 == len(main, Verbose, get_depth)
+
+error = Verbose(VERBOSE + 2, "E: ")
+warning = Verbose(VERBOSE + 1, "W: ")
+info = Verbose(VERBOSE + 0)
+moreinfo = Verbose(VERBOSE -1)
+debug = Verbose(VERBOSE - 2, "D: ")
+
+
+class Sheep(Thread):
+    def __init__(self, worker, jobs, results, daemon=False):
+        self.worker = worker
+        self.jobs = jobs
+        self.results = results
+        Thread.__init__(self)
+        self.daemon = daemon
+
+    def run(self):
+        while not self.jobs.empty():
+            self.results.put(self.worker(*self.jobs.get()))
+            self.jobs.task_done()
+
+
+class Farm:
+    def __init__(self, worker, threads=4, daemon=False, metaworker=False):
+        self._jobs = Queue()
+        self._results = Queue()
+        self._worker = worker
+        self._metaworker = metaworker
+        self._daemon = daemon
+
+        self._sheeps = [self.get_sheep() for thread in xrange(threads)]
+
+    def get_sheep(self):
+        worker = self._worker() if self._metaworker else self._worker
+        return Sheep(worker, self._jobs, self._results, self._daemon)
+
+    def enqueue(self, job):
+        self._jobs.put(job)
+
+    def is_empty(self):
+        return self._jobs.unfinished_tasks == 0
+
+    def join(self):
+        return self._jobs.join()
+
+    def get_result(self, timeout=0):
+        if self.is_empty():
+            raise Empty("The farm has no more jobs.")
+        else:
+            return self._results.get(timeout=timeout)
+
+    def wait_value(self, value):
+        return self.wait_eval(lambda x:x == value)
+
+    def wait_eval(self, evaluer=lambda x: x):
+        found = False
+
+        while not (self.is_empty() or found):
+            debug("Empty: %s\tFound: %s" % (self.is_empty(), found))
+            try:
+                found = evaluer(self._results.get(timeout=1))
+            except Empty:
+                pass
+
+        return found
+
+    def start(self):
+        for sheep in self._sheeps:
+            sheep.start()
+
 
 class Asyncobj(Thread):
     def __init__(self, func, *args, **kwargs):
@@ -42,6 +156,7 @@ class Asyncobj(Thread):
 
     def run(self):
         self.result = self.func(*self.args, **self.kwargs)
+
 
     def get_result(self, timeout=None):
         self.join(timeout)
@@ -334,7 +449,7 @@ def relpath(path):
     return os.path.abspath(path).replace(os.path.commonprefix(
         (os.path.abspath(os.path.curdir), os.path.abspath(path))), "")
 
-def Verbose(calling=1, returning=0):
+def Auto_verbose(calling=1, returning=0):
 
     def decorador(func):
         @wraps(func)
