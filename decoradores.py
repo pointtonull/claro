@@ -93,10 +93,16 @@ class Farm:
         self._metaworker = metaworker
         self._daemon = daemon
 
-        self._sheeps = [self.get_sheep() for thread in xrange(threads)]
+        self._sheeps = [self.put_sheep() for thread in xrange(threads)]
 
-    def get_sheep(self):
-        worker = self._worker() if self._metaworker else self._worker
+    def put_sheep(self, *args, **kwargs):
+        if self._metaworker:
+            worker = self._worker(*args, **kwargs)
+        else:
+            assert not args
+            assert not kwargs
+            worker = self._worker
+
         return Sheep(worker, self._jobs, self._results, self._daemon)
 
     def enqueue(self, job):
