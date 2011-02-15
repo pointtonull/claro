@@ -71,9 +71,9 @@ class Login:
         else:
             if '/c/portal/logout' in html:
                 debug("Encontrada: %s" % password)
-                return password
+                return pass_str
             elif 'saveLastPath=0&_58_struts_action=%2Flogin%2Flogin' in html:
-                debug("No es %s" % password)
+                debug("No es %s" % pass_str)
                 return False
             elif 'En este momento no podemos atender tu consulta.' in html:
                 debug("Sin servicio, %s" % password)
