@@ -10,7 +10,15 @@ rc_file = environ["HOME"] + "/.claro"
 """Este programa lee el archivo ~/.claro que debe ser un CSV de formato:
 usuario;numero;pin
 
-Se aceptan multiples registros."""
+Se aceptan multiples registros.
+
+Como la nueva página de servicios claro está fallando mucho (la mayor parte del
+tiempo no muestra el saldo disponible) estamos evaluando la posibilidad de
+que el script consulte en la vieja página cuando los datos no estén disponibles
+en la nueva.
+
+http://www.servicios.claroargentina.com/AutogestionCore2006/servlet/Controller
+"""
 
 class CLARO:
     def __init__(self):
@@ -50,7 +58,6 @@ class CLARO:
             res = re.search(regex, html)
             salida = "%s + %s = %s" % (res.group(1), res.group(2), res.group(3))
         except AttributeError:
-#            self.browser.show()
             return "Error"
         else:
             return salida.replace(",", ".")
