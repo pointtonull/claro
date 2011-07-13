@@ -7,6 +7,11 @@ from debug import debug
 import re
 
 rc_file = environ["HOME"] + "/.claro"
+URL_LOGIN = ("http://www.servicios.claroargentina.com/AutogestionCore2006/"
+    "servlet/Controller?EVENT=WELCOMEMAS&OFLINE")
+URL_SALDO = ("http://www.servicios.claroargentina.com/AutogestionCore2006/"
+    "servlet/Controller?EVENT=DATOS_FACTURA")
+
 """Este programa lee el archivo ~/.claro que debe ser un CSV de formato:
 usuario;numero;pin
 
@@ -22,22 +27,26 @@ http://www.servicios.claroargentina.com/AutogestionCore2006/servlet/Controller
 
 class CLARO:
     def __init__(self):
-        self.browser = browser.get_browser()
+        self.browser = browser.Browser()
         self._login_form = None
 
 
     def login(self, numero, pin):
-        url = ("""https://individuos.claro.com.ar""")
 
         if self._login_form is None:
             debug("Consiguiendo un formulario")
-            self._login_form = self.browser.get_forms(url, cache=1000)[0]
+            forms = self.browser.get_forms(URL_LOGIN)
+            try:
+                self._login_form = forms[0]
+            except:
+                self.browser.show()
+                raise
 
-        self._login_form["_58_login"] = numero
-        self._login_form["_58_password"] = pin
+        self._login_form["loginNumber"] = numero
+        self._login_form["password"] = pin
 
         error = self._login_form.submit()
-        if "Bienvenido"in error[1]:
+        if "Bienvenido" in error[1]:
             return False
         else:
             return error
@@ -46,21 +55,37 @@ class CLARO:
     def get_saldo(self, numero, pin):
         self.login(numero, pin)
 
-        url_saldo = ("""https://individuos.claro.com.ar/web/guest/"""
-            """saldos-y-consumos""")
+        html = self.browser.get_html(URL_SALDO)
 
-        html = self.browser.get_html(url_saldo)
-        regex = (r'Saldo Prepago Recarga.*?\$.*?(\d+.\d+).*?'
-            r'Saldo Prepago Promocional.*?\$.*?(\d+.\d+).*?'
-            r'Saldo Prepago Total.*?\$.*?(\d+.\d+)')
+        regex = (r'''(?six)
+            class="txt05".*?>.*?saldo.*?prepaga.*?\$\s*(\d*,\d*)
+            ''')
 
         try:
             res = re.search(regex, html)
-            salida = "%s + %s = %s" % (res.group(1), res.group(2), res.group(3))
+            prepago = "%s" % (res.group(1))
         except AttributeError:
+            self.browser.show()
             return "Error"
         else:
-            return salida.replace(",", ".")
+            prepago = prepago.replace(",", ".")
+
+        regex = (r'''(?six)
+            class="txt05".*?>.*?pesos.*?libres.*?disponibles.*?\$\s*(\d*,\d*)
+            ''')
+        
+        try:
+            res = re.search(regex, html)
+            libres = "%s" % (res.group(1))
+        except AttributeError:
+            libres = "0.0"
+        else:
+            libres = libres.replace(",", ".")
+
+        total = float(libres) + float(prepago)
+
+        return "%s + %s = %.2f" % (libres, prepago, total)
+
 
 
 def main():

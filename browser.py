@@ -1,219 +1,282 @@
 #!/usr/bin/env python
 #-*- coding: UTF-8 -*-
-import os
-import webbrowser
-import time
-import ClientForm
-import cPickle
-
 
 from cStringIO import StringIO
-from debug import debug
-from decoradores import signaltimeout
-from functools import wraps
 from tempfile import mkdtemp
-from urllib2 import URLError
+import ClientForm
+import cookielib
+import os
+import time
+import urllib
+import urllib2
+import webbrowser
 
-import twill
-from twill.utils import BrowserStateError
-
-tc = twill.commands
-twill.set_output(StringIO())
-twill.commands.config("use_tidy", 0)
-
+#SOME GLOBALS
 TEMPDIR = mkdtemp()
 HOME = os.environ["HOME"]
-CACHE = HOME +  "/.browser_cache"
 
-class FORM(object):
+#TODO: Add some default presets
+DEFAULT = {
+    }
+#FIREFOX = {
+#    }
+#CHROMIUM = {
+#    }
 
+
+#TODO: Add a presets maker wizzard to use your browser settings
+#class Real_browser(object):
+#    def __init__(self, browser="default"):
+#        pass
+
+#TODO: Must Form hederate from ClientForm?
+class Form(object):
     def __init__(self, parent, form):
+        """
+        :parent: The Browser instance that will process the submit
+        :form: The ClientForm instante that manages the form
+        """
         self.parent = parent
         self._form = form
         self.names = [control.name for control in self._form.controls]
 
+
     def click_request_data(self):
         return self._form.click_request_data()
+
 
     def __getitem__(self, y):
         return self._form.__getitem__(y)
 
+
     def __setitem__(self, i, y):
         return self._form.__setitem__(i, y)
+
 
     def __repr__(self):
         return str(self.names)
 
+
     def __str__(self):
         return self._form.__str__()
+
 
     def click(self):
         return self._form.click()
 
-    def submit(self, *args, **kw):
-        return self.parent.put_form(self, *args, **kw)
+
+    def submit(self, data=None, timeout=None):
+        return self.parent.go(self._form.click(), data, timeout)
+
 
     def set_all_readonly(self, *args, **kw):
         return self._form.set_all_readonly(*args, **kw)
 
 
-class BROWSER:
 
-    def __init__(self, timeout=120):
+class Cookies_mngr(cookielib.CookieJar):
+    def __init__(self, *args, **kwargs):
+        """
+        initializes the CookieJar class that implements:
+            .add_cookie_header
+            .clear
+            .clear_expired_cookies
+            .clear_session_cookies
+            .domain_re
+            .dots_re
+            .extract_cookies
+            .magic_re
+            .make_cookies
+            .non_word_re
+            .quote_re
+            .set_cookie
+            .set_cookie_if_ok
+            .set_policy
+            .strict_domain_re
+        """
 
-        self._twillbrowser = tc.get_browser()
-        self._twillbrowser.set_agent_string("moz7")
-        self.timeout = timeout
+        cookielib.CookieJar.__init__(self)
 
-        self.htmlCache = None
+
+    def save_cookies(self, filename):
+        """
+        saves the cookies to a file
+        """
+
+    def load_cookies(self, filename):
+        """
+        loads cookies from a file
+        """
+
+
+class Source_parser:
+    def __init__(self):
+        """
+        Will default to BeatifulSoap becouse its a very fast parser that does a
+        really good job with invalid/broken HTML.
+        """
+
+        #TODO: Must depend on presets when implementeds
+        from BeatifulSoup import BeatifulSoup
+        self._parser = BeatifulSoup
+
+
+    def parse(self, source):
+        self.soup = BeatifulSoup(source)
+
+
+
+
+class Cache_mngr(urllib2.BaseHandler):
+    def __init__(self, backend=None):
+        """
+        initializes the backend connection
+        """
+
+    def get_html(self, url):
+        """
+        returns the html and the time it was fetched
+        """
+
+
+
+class Browser(object):
+    def __init__(self, preset=DEFAULT, cookiesmngr=None, cachemngr=None,
+        proxiesmngr=None):
+        """
+        instantes a cookie manager if not given
+        instances a cache manager if not given
+        instances a proxies manager if not given
+        instances a html
+        instances a urllib2 opener for private use
+        """
+
+        #FIXME: Must depend on presets when implementeds
+        self.cache = cachemngr or Cache_mngr()
+        self.cookies = cookiesmngr or Cookies_mngr()
+        self.proxies = proxiesmngr or urllib2.ProxyHandler()
+        self.opener = urllib2.build_opener(
+            urllib2.HTTPCookieProcessor(self.cookies),
+            self.proxies, self.cache)
+
+
+    def config(self):
+        """
+        getter and setter to the self._config dict
+        """
 
     def reload(self):
-        return self._twillbrowser.reload()
+        """
+        reload the current url and update states
+
+        return result
+        """
 
     def show(self, url=None, openon=None):
+        """
+        open a copy of the current html in a webbrowser
+        """
+
         if url:
             self.go(url)
         temppath = "%s/%d.html" % (TEMPDIR, time.time())
         tempfile = open(temppath, "w")
         tempfile.write(self.get_html())
         tempfile.close()
-        debug(temppath)
 
         if not openon:
             return webbrowser.open(temppath)
         else:
             return webbrowser.GenericBrowser(openon).open(temppath)
 
-    def clear_cookies(self):
-        return self._twillbrowser.clear_cookies()
 
-    def save_cookies(self, filename):
-        return self._twillbrowser.save_cookies(filename)
+    def go(self, url, data=None, timeout=None):
+        """
+        requests the html and updates the statuses
 
-    def load_cookies(self, filename):
-        return self._twillbrowser.load_cookies(filename)
-
-    def add_cookie(self, cookie, dominio):
-        """Por ahora no se me ocurrió un metodo más elegante..."""
-        temppath = "%s/%d" % (TEMPDIR, time.time())
-        self.save_cookies(temppath)
-        cookiefile = open(temppath, "a+")
-        cookiefile.write("""Set-Cookie3:%s; path="/";domain="%s";path_spec;"""
-            """domain_dot; expires""; version=0""" % (cookie, dominio))
-        cookiefile.close()
-        self.load_cookies(temppath)
-
-    def go(self, url):
-        try:
-            #TODO: Re-implement TimeOut
-            signaltimeout(self.timeout, self._twillbrowser.go, url)
-        except ValueError:
-            self._twillbrowser.go(url)
-
-        return self.get_code(), self.get_title()
+        returns the opener msg
+        """
+        self._last_req = self.opener.open(url, data, timeout)
+        return self._update_status()
 
 
-    def get_html(self, url=None, *args, **kw):
-        cache = kw.get("cache", 0)
-
-        if cache is 0:
-            if url:
-                self.go(url)
-            html = self._twillbrowser.get_html()
-        else:
-            html = self.get_html_from_cache(url, cache)
-
-
-        return html
+    def _update_status(self, request=None):
+        """
+        """
+        request = request or self._last_req
+        self._code = request.code
+        self._url = request.url
+        self._msg = request.msg
+        self._headers = request.headers
+        self._html = request.read()
+        return self._msg
 
 
-    def get_html_from_cache(self, url, cache):
-        if self.htmlCache is None:
-            try:
-                self.htmlCache = cPickle.load(open(CACHE))
-            except IOError:
-                self.htmlCache = {}
-
-        date, html = self.htmlCache.get(url, (0, ""))
-
-        if (time.time() - date) > cache:
-            self.go(url)
-            html = self._twillbrowser.get_html()
-            date = time.time()
-            self.htmlCache[url] = date, html
-            cPickle.dump(self.htmlCache, open(CACHE, "w"), -1)
-
-        return html
-
-
-
-    def get_title(self, url=None, *args, **kwargs):
+    def get_html(self, url=None, data=None, timeout=None):
+        """
+        returns the html
+        """
         if url:
-            self.go(url, *args, **kwargs)
-        return self._twillbrowser.get_title()
+            self.go(url, data, timeout)
+        return self._html
 
 
-    def get_code(self, url=None):
+    def get_title(self, url=None, data=None, timeout=None):
+        """
+        returns the title
+        """
         if url:
-            self.go(url)
-        return self._twillbrowser.get_code()
+            self.go(url, data, timeout)
+        return self._title
+
+
+    def get_code(self, url=None, data=None, timeout=None):
+        """
+        returns the error code
+        """
+        if url:
+            self.go(url, data, timeout)
+        return self._code
 
 
     def get_url(self):
-        return self._twillbrowser.get_url()
+        """
+        returns the current url
+        """
+        return self._url
 
 
-    def get_forms(self, url=None, *args, **kw):
-        posturl = url or self.get_url()
+    def get_forms(self, url=None, data=None, timeout=None):
+        """
+        return the forms
+        """
+        if url:
+            self.go(url, data, timeout)
+        
         fifo = StringIO()
-        fifo.writelines(self.get_html(url, *args, **kw))
+        fifo.writelines(self.get_html())
         fifo.seek(0)
-        forms = ClientForm.ParseFile(fifo, posturl, backwards_compat=False)
-
-        return [FORM(self, form) for form in forms]
-
-
-    def put_form(self, form=None, *args, **kw):
-        if form is None:
-            # Por compactibilidad con versiones anteriores
-            self._twillbrowser.submit()
-        else:
-            code = 200
-            try:
-                response = self._twillbrowser._browser.open(
-                    form._form.click(*args, **kw))
-            except URLError, e:
-                debug("Error: %s" % e)
-                try:
-                    code = int(e)
-                except TypeError:
-                    code = 404
-                    html = ""
-                    url = ""
-            else:
-                html = "\n".join(response.readlines())
-                url = response.geturl()
-
-            self._twillbrowser.result = twill.utils.ResultWrapper(
-                200, url, html)
-
-        return self.get_code(), self.get_title()
-
-
-class GET_BROSER(object):
-    def __init__(self):
-        self.browser = None
-
-    def __call__(self):
-        if self.browser is None:
-            self.browser = BROWSER()
-        return self.browser
-
-get_browser = GET_BROSER()
+        forms = ClientForm.ParseFile(fifo, self.get_url(),
+            backwards_compat=False) 
+        return [Form(self, form) for form in forms]
 
 
 def main():
-    print """Este programa está diseñado para ser usado como modulo"""
+    #TODO: Implement a shell like language for web scripting
+    browser = Browser()
+    print(browser.go("https://joindiaspora.com/users/sign_in"))
+    forms = browser.get_forms()
+    form = forms[0]
+    form["user[username]"] = raw_input("User: ")
+    form["user[password]"] = raw_input("Password: ")
+    print(form.submit())
+    forms = browser.get_forms()
+    form = forms[2]
+    form.set_all_readonly(False)
+    form["status_message[public]"] = "true"
+    form["status_message[text]"] = raw_input("Message: ")
+    print(form.submit())
+    browser.show()
 
 
 if __name__ == "__main__":
