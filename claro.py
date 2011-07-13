@@ -36,11 +36,14 @@ class CLARO:
         if self._login_form is None:
             debug("Consiguiendo un formulario")
             forms = self.browser.get_forms(URL_LOGIN)
-            try:
+            html = self.browser.get_html()
+            if forms:
                 self._login_form = forms[0]
-            except:
+            elif "En este momento no podemos atender tu consulta." in html:
+                return False
+            else:
                 self.browser.show()
-                raise
+
 
         self._login_form["loginNumber"] = numero
         self._login_form["password"] = pin
