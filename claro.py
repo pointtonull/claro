@@ -68,15 +68,19 @@ class CLARO:
             res = re.search(regex, html)
             prepago = "%s" % (res.group(1))
         except AttributeError:
-            self.browser.show()
-            return "Error"
+            if "En este momento no podemos atender tu consulta." in html:
+                prepago = "Error"
+            else:
+                prepago = "0"
         else:
             prepago = prepago.replace(",", ".")
+
+        prepago = float(prepago)
 
         regex = (r'''(?six)
             class="txt05".*?>.*?pesos.*?libres.*?disponibles.*?\$\s*(\d*,\d*)
             ''')
-        
+
         try:
             res = re.search(regex, html)
             libres = "%s" % (res.group(1))
@@ -85,6 +89,24 @@ class CLARO:
         else:
             libres = libres.replace(",", ".")
 
+        libres = float(libres)
+
+
+        regex = (r'''(?six)
+            class="txt05".*?>.*?total.*?pesos.*?consumidos.*?\$\s*(\d*,\d*)
+            ''')
+
+        try:
+            res = re.search(regex, html)
+            libresconsumidos = "%s" % (res.group(1))
+        except AttributeError:
+            libresconsumidos = "0.0"
+        else:
+            libresconsumidos = libresconsumidos.replace(",", ".")
+
+        libresconsumidos = float(libresconsumidos)
+        libres -= libresconsumidos
+        
         total = float(libres) + float(prepago)
 
         return "%s + %s = %.2f" % (libres, prepago, total)
@@ -95,7 +117,8 @@ def main():
     claro = CLARO()
 
     users = [line.strip().split(";")
-        for line in open(rc_file).readlines()]
+        for line in open(rc_file).readlines()
+            if not "#" in line]
 
     for user in users:
         print "%s: %s" % (user[0], claro.get_saldo(user[1], user[2]))

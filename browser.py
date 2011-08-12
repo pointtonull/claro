@@ -17,6 +17,7 @@ HOME = os.environ["HOME"]
 
 #TODO: Add some default presets
 DEFAULT = {
+    "User-Agent":"Mozilla/5.0 (X11; U; Linux i686) Gecko/20071127 Firefox/2.0.0.11"
     }
 #FIREFOX = {
 #    }
@@ -158,6 +159,7 @@ class Browser(object):
         self.opener = urllib2.build_opener(
             urllib2.HTTPCookieProcessor(self.cookies),
             self.proxies, self.cache)
+        self.opener.addheaders = [('User-agent', preset["User-Agent"])]
 
 
     def config(self):
