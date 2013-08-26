@@ -3,11 +3,10 @@
 
 from cStringIO import StringIO
 from tempfile import mkdtemp
-import ClientForm
+import mechanize
 import cookielib
 import os
 import time
-import urllib
 import urllib2
 import webbrowser
 
@@ -30,12 +29,12 @@ DEFAULT = {
 #    def __init__(self, browser="default"):
 #        pass
 
-#TODO: Must Form hederate from ClientForm?
+#TODO: Must Form hederate from mechanize?
 class Form(object):
     def __init__(self, parent, form):
         """
         :parent: The Browser instance that will process the submit
-        :form: The ClientForm instante that manages the form
+        :form: The mechanize instante that manages the form
         """
         self.parent = parent
         self._form = form
@@ -258,7 +257,7 @@ class Browser(object):
         fifo = StringIO()
         fifo.writelines(self.get_html())
         fifo.seek(0)
-        forms = ClientForm.ParseFile(fifo, self.get_url(),
+        forms = mechanize.ParseFile(fifo, self.get_url(),
             backwards_compat=False) 
         return [Form(self, form) for form in forms]
 

@@ -5,7 +5,7 @@ import urllib2
 import urllib
 import cookielib
 import sys
-import ClientForm
+import mechanize
 from decoradores import Retry, Farm, Verbose
 
 VERBOSE = 0
@@ -43,7 +43,7 @@ class Login:
 
                 try:
                     response = self.opener.open(formurl)
-                    forms = ClientForm.ParseResponse(response,
+                    forms = mechanize.ParseResponse(response,
                         backwards_compat=False)
                 except (urllib2.URLError, urllib2.HTTPError):
                     return None
@@ -97,7 +97,7 @@ def main(opts=None, args=None):
 
 #TODO: debe verificar el servicio antes de iniciar el proceso
 
-    farm = Farm(Login, 32, True, True)
+    farm = Farm(Login, 8, True, True)
     debug("Farm created")
     
     rango = xrange(int(fromnumber.replace("%", "00")),
